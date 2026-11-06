@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  RESPONSABLE
+  DELEGUE
+  PROFESSEUR
+  ETUDIANT
+}
+
+enum ValidationStatus {
+  PENDING
+  VALIDATED
+  REFUSED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          Role
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  niveauId      String?
+  niveau        Niveau?   @relation(fields: [niveauId], references: [id])
+  createdById   String?
+  createdBy     User?     @relation("CreatedUsers", fields: [createdById], references: [id])
+  createdUsers  User[]    @relation("CreatedUsers")
+
+  // Specific relations
+  coursProf         Cours[]          @relation("ProfCours")
+  coursDelegue      Cours[]          @relation("DelegueCours")
+  progressions      ProgressionCours[] @relation("DelegueProgressions")
+  validations       ValidationProf[] @relation("ProfValidations")
+  rapports          Rapport[]
+}
+
+model Niveau {
+  id          String   @id @default(cuid())
+  nom         String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users  User[]
+  cours  Cours[]
+}
+
+model Cours {
+  id              String   @id @default(cuid())
+  titre           String
+  description     String?  @db.Text
+  heuresPrevues   Float
+  filiere         String
+  semestre        Int
+  codeEtudiant    String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  niveauId        String
+  niveau          Niveau   @relation(fields: [niveauId], references: [id])
+  profId          String?
+  prof            User?    @relation("ProfCours", fields: [profId], references: [id])
+  delegueId       String?
+  delegue         User?    @relation("DelegueCours", fields: [delegueId], references: [id])
+
+  syllabus        Syllabus?
+  progressions    ProgressionCours[]
+  uploads         CoursUpload[]
+}
+
+model Syllabus {
+  id          String   @id @default(cuid())
+  contenu     String   @db.LongText
+  fichierUrl  String?
+  structure   Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  coursId     String   @unique
+  cours       Cours    @relation(fields: [coursId], references: [id], onDelete: Cascade)
+}
+
+model ProgressionCours {
+  id              String           @id @default(cuid())
+  heureDebut      DateTime
+  heureFin        DateTime
+  partieAtteinte  String           @db.Text
+  chapitreId      String?
+  chapitreTitre   String?
+  grandTitreId    String?
+  grandTitreNom   String?
+  heuresEffectives Float
+  semaine         Int
+  annee           Int
+  notifEnvoyee    Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  coursId         String
+  cours           Cours            @relation(fields: [coursId], references: [id])
+  delegueId       String
+  delegue         User             @relation("DelegueProgressions", fields: [delegueId], references: [id])
+
+  validation      ValidationProf?
+}
+
+model ValidationProf {
+  id              String           @id @default(cuid())
+  status          ValidationStatus @default(PENDING)
+  commentaire     String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  progressionId   String           @unique
+  progression     ProgressionCours @relation(fields: [progressionId], references: [id])
+  profId          String
+  prof            User             @relation("ProfValidations", fields: [profId], references: [id])
+}
+
+model CoursUpload {
+  id              String   @id @default(cuid())
+  fichierUrl      String
+  fichierNom      String
+  scoreIA         Float?
+  analyseIA       String?  @db.LongText
+  ajustementsIA   String?  @db.LongText
+  estConforme     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  coursId         String
+  cours           Cours    @relation(fields: [coursId], references: [id])
+}
+
+model Rapport {
+  id              String   @id @default(cuid())
+  semaine         Int
+  annee           Int
+  contenu         String   @db.LongText
+  commentaire     String?  @db.Text
+  pdfUrl          String?
+  partageAdmin    Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  responsableId   String
+  responsable     User     @relation(fields: [responsableId], references: [id])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  titre       String
+  message     String   @db.Text
+  lu          Boolean  @default(false)
+  destinataire String
+  type        String
+  createdAt   DateTime @default(now())
+}
+
